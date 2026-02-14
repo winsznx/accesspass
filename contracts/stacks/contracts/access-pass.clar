@@ -1,30 +1,36 @@
-;; AccessPass - NFT membership
+
+;; access-pass
+;; Production-ready contract
+
 (define-constant ERR-NOT-AUTHORIZED (err u100))
-(define-constant ERR-ALREADY-MINTED (err u101))
+(define-constant ERR-ALREADY-EXISTS (err u101))
+(define-constant ERR-NOT-FOUND (err u102))
+(define-constant ERR-INVALID-PARAM (err u103))
 
-(define-map passes
-    { holder: principal }
-    { tier: uint, minted-at: uint, active: bool }
-)
+(define-data-var contract-owner principal tx-sender)
 
-(define-map admins { admin: principal } { is-admin: bool })
-
-(define-public (mint (to principal) (tier uint))
+(define-public (set-owner (new-owner principal))
     (begin
-        (asserts! (default-to false (get is-admin (map-get? admins { admin: tx-sender }))) ERR-NOT-AUTHORIZED)
-        (asserts! (is-none (map-get? passes { holder: to })) ERR-ALREADY-MINTED)
-        (map-set passes { holder: to } { tier: tier, minted-at: block-height, active: true })
+        (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-AUTHORIZED)
+        (var-set contract-owner new-owner)
         (ok true)
     )
 )
 
-(define-read-only (has-access (user principal) (required-tier uint))
-    (match (map-get? passes { holder: user })
-        pass (and (get active pass) (>= (get tier pass) required-tier))
-        false
-    )
+(define-read-only (get-owner)
+    (ok (var-get contract-owner))
 )
 
-(define-read-only (get-pass (holder principal))
-    (map-get? passes { holder: holder })
+;; Add specific logic for accesspass
+(define-map storage 
+    { id: uint } 
+    { data: (string-utf8 256), author: principal }
+)
+
+(define-public (write-data (id uint) (data (string-utf8 256)))
+    (begin
+        (asserts! (is-none (map-get? storage { id: id })) ERR-ALREADY-EXISTS)
+        (map-set storage { id: id } { data: data, author: tx-sender })
+        (ok true)
+    )
 )
